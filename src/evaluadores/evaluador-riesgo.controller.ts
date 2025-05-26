@@ -1,56 +1,114 @@
-import { Controller, Post, Body, HttpException, HttpStatus, Inject } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Cliente } from '../cliente/cliente';
-import { PersonaNatural } from '../cliente/cliente';
-import { PersonaJuridica } from '../cliente/cliente';
-import { EvaluadorRiesgoBajo } from './evaluador-riesgo-bajo.entity';
-import { EvaluadorRiesgoMedio } from './evaluador-riesgo-medio.entity';
-import { EvaluadorRiesgoAlto } from './evaluador-riesgo-alto.entity';
+import { Controller, Post, Body, HttpException, HttpStatus, Get, Param, Logger } from '@nestjs/common';
 import { ResultadoEvaluacion } from './dto/resultado-evaluacion.dto';
+import { EvaluarClienteDto, TipoCliente } from './dto/evaluar-cliente.dto';
 import { EvaluadorRiesgoService } from './evaluador-riesgo.service';
+import { ClienteService } from '../cliente/cliente.service';
+import { PersonaNatural } from '../cliente/persona-natural.entity';
+import { PersonaJuridica } from '../cliente/persona-juridica.entity';
+import { ClienteAbs } from '../cliente/cliente-abs.entity';
+import { HistorialEvaluacionService } from '../historial/historial-evaluacion.service';
 
 @Controller('evaluar-riesgo')
 export class EvaluadorRiesgoController {
+  private readonly logger = new Logger(EvaluadorRiesgoController.name);
+
   constructor(
-    @InjectRepository(Cliente)
-    private readonly clienteRepository: Repository<Cliente>,
-    @Inject('EVALUADORES_RIESGO')
-    private readonly evaluadores: (EvaluadorRiesgoBajo | EvaluadorRiesgoMedio | EvaluadorRiesgoAlto)[],
-    private readonly evaluadorRiesgoService: EvaluadorRiesgoService
+    private readonly evaluadorRiesgoService: EvaluadorRiesgoService,
+    private readonly clienteService: ClienteService,
+    private readonly historialService: HistorialEvaluacionService
   ) {}
 
   @Post()
-  async evaluarRiesgo(@Body() clienteData: any): Promise<ResultadoEvaluacion> {
-    const existingCliente = await this.clienteRepository.findOne({ where: { nombre: clienteData.nombre } });
-    if (existingCliente) {
-      throw new HttpException('Cliente con el mismo nombre ya existe', HttpStatus.BAD_REQUEST);
+  async evaluarRiesgo(@Body() clienteData: EvaluarClienteDto): Promise<ResultadoEvaluacion> {
+    this.logger.debug(`Recibiendo solicitud de evaluación para cliente: ${JSON.stringify(clienteData)}`);
+    let cliente: ClienteAbs;
+
+    try {
+      // Verificar si el cliente ya existe
+      try {
+        const clienteExistente = await this.clienteService.obtenerClientePorNombre(clienteData.nombre);
+        if (clienteExistente) {
+          this.logger.debug(`Cliente ${clienteData.nombre} ya existe, evaluando riesgo...`);
+          const resultado = await this.evaluadorRiesgoService.evaluarRiesgo(clienteExistente);
+          await this.historialService.crearHistorialEvaluacion(clienteExistente, resultado);
+          return resultado;
+        }
+      } catch (error) {
+        // Si no encuentra el cliente, continuamos con la creación
+        if (error.status !== HttpStatus.NOT_FOUND) {
+          throw error;
+        }
+      }
+
+      // Crear el cliente según su tipo
+      if (clienteData.tipoCliente === TipoCliente.NATURAL) {
+        this.logger.debug('Procesando cliente natural');
+        if (!clienteData.ingresoMensual || !clienteData.edad) {
+          throw new HttpException('Datos de persona natural incompletos: se requiere ingresoMensual y edad', HttpStatus.BAD_REQUEST);
+        }
+        cliente = await this.clienteService.crearPersonaNatural({
+          nombre: clienteData.nombre,
+          edad: clienteData.edad,
+          ingresoMensual: clienteData.ingresoMensual,
+          puntajeCrediticio: clienteData.puntajeCrediticio,
+          deudasActuales: clienteData.deudasActuales,
+          montoSolicitado: clienteData.montoSolicitado,
+          plazoEnMeses: clienteData.plazoEnMeses
+        });
+        this.logger.debug(`Cliente natural creado con ID: ${cliente.id}`);
+      } else if (clienteData.tipoCliente === TipoCliente.JURIDICA) {
+        this.logger.debug('Procesando cliente jurídico');
+        if (!clienteData.ingresoAnual || !clienteData.antiguedadAnios || !clienteData.empleados) {
+          throw new HttpException(
+            'Datos de persona jurídica incompletos: se requiere ingresoAnual, antiguedadAnios y empleados',
+            HttpStatus.BAD_REQUEST
+          );
+        }
+        cliente = await this.clienteService.crearPersonaJuridica({
+          nombre: clienteData.nombre,
+          antiguedadAnios: clienteData.antiguedadAnios,
+          ingresoAnual: clienteData.ingresoAnual,
+          empleados: clienteData.empleados,
+          puntajeCrediticio: clienteData.puntajeCrediticio,
+          deudasActuales: clienteData.deudasActuales,
+          montoSolicitado: clienteData.montoSolicitado,
+          plazoEnMeses: clienteData.plazoEnMeses
+        });
+        this.logger.debug(`Cliente jurídico creado con ID: ${cliente.id}`);
+      } else {
+        throw new HttpException('Tipo de cliente no válido', HttpStatus.BAD_REQUEST);
+      }
+
+      // Evaluar riesgo
+      this.logger.debug('Evaluando riesgo del cliente');
+      const resultado = await this.evaluadorRiesgoService.evaluarRiesgo(cliente);
+
+      // Crear registro histórico
+      this.logger.debug('Creando registro histórico');
+      await this.historialService.crearHistorialEvaluacion(cliente, resultado);
+
+      return resultado;
+
+    } catch (error) {
+      this.logger.error('Error en evaluarRiesgo:', error);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        `Error al procesar la solicitud: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
+  }
 
-    let cliente: Cliente;
-    if (clienteData.tipoCliente === 'NATURAL') {
-      cliente = this.clienteRepository.create({
-        ...clienteData,
-        deudasActuales: clienteData.deudasActuales.map((deuda: any) => ({ monto: deuda.monto, plazoMeses: deuda.plazoMeses }))
-      } as PersonaNatural);
-    } else if (clienteData.tipoCliente === 'JURIDICA') {
-      cliente = this.clienteRepository.create({
-        ...clienteData,
-        deudasActuales: clienteData.deudasActuales.map((deuda: any) => ({ monto: deuda.monto, plazoMeses: deuda.plazoMeses }))
-      } as PersonaJuridica);
-    } else {
-      throw new HttpException('Tipo de cliente no válido', HttpStatus.BAD_REQUEST);
-    }
+  @Get(':id')
+  async obtenerEvaluacion(@Param('id') id: number): Promise<ResultadoEvaluacion> {
+    const cliente = await this.clienteService.obtenerClientePorId(id);
+    return this.evaluadorRiesgoService.evaluarRiesgo(cliente);
+  }
 
-    if (cliente instanceof PersonaNatural) {
-      await this.clienteRepository.save(cliente as PersonaNatural);
-    } else if (cliente instanceof PersonaJuridica) {
-      await this.clienteRepository.save(cliente as PersonaJuridica);
-    }
-
-    console.log('Cliente guardado:', cliente);
-
-    // Evaluate risk using the service
-    return this.evaluadorRiesgoService.evaluarRiesgo(clienteData);
+  @Get(':id/historial')
+  async obtenerHistorialEvaluaciones(@Param('id') id: number) {
+    return this.historialService.obtenerHistorialPorCliente(id);
   }
 }
