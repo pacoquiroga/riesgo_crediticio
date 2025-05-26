@@ -1,12 +1,22 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { EvaluadorRiesgoResolver } from './evaluador_riesgo/evaluador_riesgo.resolver';
-import { EvaluadorRiesgoModule } from './evaluador-riesgo/evaluador-riesgo.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 @Module({
-  imports: [EvaluadorRiesgoModule],
+  imports: [
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: 'localhost',
+      port: 5432,
+      username: 'admin',
+      password: 'admin',
+      database: 'BancoDB',
+      autoLoadEntities: true,
+      synchronize: true,
+    }),
+  ],
   controllers: [AppController],
-  providers: [AppService, EvaluadorRiesgoResolver],
+  providers: [AppService],
 })
 export class AppModule {}
