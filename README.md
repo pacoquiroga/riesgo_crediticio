@@ -1,98 +1,176 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Sistema de Evaluación de Riesgo Crediticio
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Este sistema permite evaluar el riesgo crediticio de personas naturales y jurídicas, calculando su nivel de riesgo y determinando la aprobación de préstamos basado en diversos factores.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Requisitos Previos
 
-## Description
+- Docker
+- Node.js (v14 o superior)
+- npm (v6 o superior)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Configuración del Entorno
 
-## Project setup
+### 1. Configuración de la Base de Datos PostgreSQL
+
+Primero, necesitamos ejecutar un contenedor de PostgreSQL:
 
 ```bash
-$ pnpm install
+# Crear y ejecutar el contenedor de PostgreSQL
+docker run --name postgres-banco -e POSTGRES_PASSWORD=admin -e POSTGRES_DB=bancodb -p 5432:5432 -d postgres
 ```
 
-## Compile and run the project
+Para verificar que el contenedor está corriendo:
+```bash
+docker ps
+```
+
+### 2. Instalación de Dependencias
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+# Instalar dependencias del proyecto
+pnpm install
 ```
 
-## Run tests
+### 3. Ejecutar la Aplicación
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+# Ejecutar en modo desarrollo
+pnpm run start:dev
 ```
 
-## Deployment
+La aplicación estará disponible en `http://localhost:3000`
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Uso de la API
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 1. Evaluar Riesgo de Cliente Natural
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+curl -X POST http://localhost:3000/evaluar-riesgo \
+-H "Content-Type: application/json" \
+-d '{
+    "tipoCliente": "NATURAL",
+    "nombre": "Juan Pérez",
+    "puntajeCrediticio": 720,
+    "deudasActuales": [
+        {
+            "monto": 800,
+            "plazoMeses": 12
+        }
+    ],
+    "montoSolicitado": 5000,
+    "plazoEnMeses": 24,
+    "edad": 35,
+    "ingresoMensual": 4500
+}'
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### 2. Evaluar Riesgo de Cliente Jurídico
 
-## Resources
+```bash
+curl -X POST http://localhost:3000/evaluar-riesgo \
+-H "Content-Type: application/json" \
+-d '{
+    "tipoCliente": "JURIDICA",
+    "nombre": "Empresa XYZ",
+    "puntajeCrediticio": 750,
+    "deudasActuales": [
+        {
+            "monto": 100000,
+            "plazoMeses": 24
+        }
+    ],
+    "montoSolicitado": 200000,
+    "plazoEnMeses": 36,
+    "antiguedadAnios": 8,
+    "ingresoAnual": 1000000,
+    "empleados": 45
+}'
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### 3. Consultar Historial de Evaluaciones
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+curl http://localhost:3000/evaluar-riesgo/{clienteId}/historial
+```
 
-## Support
+## Estructura de Respuestas
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### Evaluación de Riesgo
 
-## Stay in touch
+```json
+{
+    "nivelRiesgo": "BAJO|MEDIO|ALTO",
+    "aprobado": true|false,
+    "puntajeFinal": 85,
+    "mensaje": "Cliente apto para préstamo con condiciones preferenciales",
+    "tasaInteres": 6.5,
+    "plazoAprobado": 24
+}
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Historial de Evaluaciones
 
-## License
+```json
+[
+    {
+        "id": 1,
+        "clienteNombre": "Juan Pérez",
+        "tipoCliente": "NATURAL",
+        "montoSolicitado": 5000,
+        "plazoEnMeses": 24,
+        "nivelRiesgo": "BAJO",
+        "aprobado": true,
+        "fechaConsulta": "2024-03-19T15:30:00.000Z",
+        "clienteId": 1
+    }
+]
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Comandos Útiles de Docker
+
+```bash
+# Detener el contenedor
+docker stop postgres-banco
+
+# Iniciar el contenedor
+docker start postgres-banco
+
+# Ver logs del contenedor
+docker logs postgres-banco
+
+# Eliminar el contenedor
+docker rm -f postgres-banco
+```
+
+## Notas Adicionales
+
+- La base de datos se crea automáticamente gracias a la configuración `synchronize: true` en el módulo TypeORM.
+- Los datos de conexión a la base de datos están configurados en `src/app.module.ts`.
+- El sistema evalúa el riesgo basado en:
+  - Puntaje crediticio
+  - Ratio de deuda
+  - Monto solicitado vs ingresos
+  - Tipo de cliente (Natural o Jurídico)
+
+## Solución de Problemas
+
+1. Si el contenedor no inicia:
+```bash
+# Verificar los logs
+docker logs postgres-banco
+```
+
+2. Si no se puede conectar a la base de datos:
+```bash
+# Verificar que el contenedor está corriendo
+docker ps | grep postgres-banco
+
+# Verificar que el puerto está disponible
+netstat -an | grep 5432
+```
+
+3. Si necesitas reiniciar la base de datos:
+```bash
+docker rm -f postgres-banco
+# Luego volver a ejecutar el comando de creación del contenedor
+```
